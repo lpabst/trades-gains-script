@@ -1,0 +1,105 @@
+{
+  "Symbols": [
+    {
+      "AssetType": "FUTURE",
+      "Country": "United States",
+      "Currency": "USD",
+      "Description": "miNY Natural Gas Aug 2024",
+      "Exchange": "NYMEX",
+      "ExpirationDate": "2024-07-26T00:00:00Z",
+      "FutureType": "Electronic",
+      "Symbol": "QNQ24",
+      "Root": "QN",
+      "PriceFormat": {
+        "Format": "Decimal",
+        "Decimals": "3",
+        "IncrementStyle": "Simple",
+        "Increment": "0.005",
+        "PointValue": "2500"
+      },
+      "QuantityFormat": {
+        "Format": "Decimal",
+        "Decimals": "0",
+        "IncrementStyle": "Simple",
+        "Increment": "1",
+        "MinimumTradeQuantity": "1"
+      }
+    },
+    {
+      "AssetType": "FUTURE",
+      "Country": "United States",
+      "Currency": "USD",
+      "Description": "E-mini Wheat Sep 2024",
+      "Exchange": "CBOT",
+      "ExpirationDate": "2024-09-13T00:00:00Z",
+      "FutureType": "Electronic",
+      "Symbol": "YWU24",
+      "Root": "YW",
+      "PriceFormat": {
+        "Format": "Fraction",
+        "Fraction": "8",
+        "IncrementStyle": "Simple",
+        "Increment": "0.125",
+        "PointValue": "10"
+      },
+      "QuantityFormat": {
+        "Format": "Decimal",
+        "Decimals": "0",
+        "IncrementStyle": "Simple",
+        "Increment": "1",
+        "MinimumTradeQuantity": "1"
+      }
+    },
+    {
+      "AssetType": "FUTURE",
+      "Country": "United States",
+      "Currency": "USD",
+      "Description": "Micro Copper Futures Jul 2024",
+      "Exchange": "COMEX",
+      "ExpirationDate": "2024-06-26T00:00:00Z",
+      "FutureType": "Electronic",
+      "Symbol": "MHGN24",
+      "Root": "MHG",
+      "PriceFormat": {
+        "Format": "Decimal",
+        "Decimals": "4",
+        "IncrementStyle": "Simple",
+        "Increment": "0.0005",
+        "PointValue": "2500"
+      },
+      "QuantityFormat": {
+        "Format": "Decimal",
+        "Decimals": "0",
+        "IncrementStyle": "Simple",
+        "Increment": "1",
+        "MinimumTradeQuantity": "1"
+      }
+    },
+    {
+      "AssetType": "FUTURE",
+      "Country": "United States",
+      "Currency": "USD",
+      "Description": "E-Micro Gold Aug 2024",
+      "Exchange": "COMEX",
+      "ExpirationDate": "2024-08-28T00:00:00Z",
+      "FutureType": "Electronic",
+      "Symbol": "MGCQ24",
+      "Root": "MGC",
+      "PriceFormat": {
+        "Format": "Decimal",
+        "Decimals": "1",
+        "IncrementStyle": "Simple",
+        "Increment": "0.1",
+        "PointValue": "10"
+      },
+      "QuantityFormat": {
+        "Format": "Decimal",
+        "Decimals": "0",
+        "IncrementStyle": "Simple",
+        "Increment": "1",
+        "MinimumTradeQuantity": "1"
+      }
+    }
+  ],
+  "Errors": []
+}
