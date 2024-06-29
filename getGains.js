@@ -1,5 +1,5 @@
-const orders = require("./orders.json");
-const symbols = require("./symbols.json");
+const orders = require("./input/orders.json");
+const symbols = require("./input/symbols.json");
 const fs = require("fs");
 const path = require("path");
 
