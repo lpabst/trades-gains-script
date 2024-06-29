@@ -3,7 +3,8 @@ const symbols = require("./input/symbols.json");
 const fs = require("fs");
 const path = require("path");
 
-const symbolsToLog = ["QN"];
+const symbolsToLog = [];
+const includeHistory = false;
 
 async function run() {
   console.log("start script");
@@ -164,8 +165,7 @@ function addUpGainsForOrders(orders, symbolInfo) {
     dollarsGainOrLoss: 0,
     totalDollarsGainOrLossIncludingCommissions: 0,
     openTrades: [],
-    // I might add this later
-    // history: [],
+    history: [],
   };
 
   let openTrades = [];
@@ -178,6 +178,16 @@ function addUpGainsForOrders(orders, symbolInfo) {
     ) {
       console.log(metrics.pointsGainOrLoss);
       console.log({
+        date: order.date,
+        orderSide: order.side,
+        commission: order.commission,
+        price: order.price,
+        quantity: order.quantity,
+      });
+    }
+    if (includeHistory) {
+      metrics.history.push({
+        id: order.OrderID,
         date: order.date,
         orderSide: order.side,
         commission: order.commission,
