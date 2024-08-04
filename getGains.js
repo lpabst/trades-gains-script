@@ -1,132 +1,91 @@
-const orders = require("./input/orders.json");
-const symbols = require("./input/symbols.json");
+// const orders = require("./input/orders.json");
+// const symbols = require("./input/symbols.json");
+const symbolInfoFile = require("./symbolInfo");
+const helpers = require("./helpers");
 const fs = require("fs");
 const path = require("path");
+const symbolMap = symbolInfoFile.symbolMap;
+
+helpers.extendArrayMethods();
 
 const symbolsToLog = [];
 const includeHistory = false;
 
+run();
+
 async function run() {
   console.log("start script");
 
-  // creates an organized and sorted .json file for us to peruse
-  await organizeAndSortOrders();
+  const ordersCsv = await fs.promises.readFile("./input/orders.csv", "utf-8");
+  if (!ordersCsv) {
+    console.log("unable to find orders.csv file in inputs folder");
+    return;
+  }
+
+  const ordersArr = helpers.parseCsvToJson(ordersCsv, ",");
+  const ordersArrWithValues = ordersArr.filter(
+    (order) => !!order.Date && !!order["Trade Price"]
+  );
+  await fs.promises.writeFile(
+    "./output/orders.json",
+    JSON.stringify(ordersArrWithValues, null, 2)
+  );
+
+  // NOTE: the orders should come sorted in the CSV, so we don't need to worry about that
+  const simpleOrders = ordersArrWithValues.map((order) => {
+    const csvFuturesCode = order["Futures Code"];
+    const symbolDataForCode = symbolMap[csvFuturesCode];
+    if (!symbolDataForCode) {
+      console.log("missing symbol data for code: " + csvFuturesCode);
+      console.log(order);
+      return;
+    }
+
+    return {
+      date: order.Date,
+      side: Number(order.Buy) > 0 ? "Buy" : "Sell",
+      csvFuturesCode,
+      symbolRoot: symbolDataForCode.symbolRoot,
+      commission:
+        Number(order["Posted Commission"]) +
+        Number(order["Posted Clearing Fee"]) +
+        Number(order["Posted NFA Fee"]),
+      price: Number(order["Trade Price"]),
+      quantity: Number(order.Buy) || Number(order.Sell),
+    };
+  });
+  await fs.promises.writeFile(
+    "./output/simpleOrders.json",
+    JSON.stringify(simpleOrders, null, 2)
+  );
 
   // totals up the gains/losses for each symbol and outputs it into a .json file for us to peruse
-  await addUpGainsAndLosses();
+  await addUpGainsAndLosses(simpleOrders);
 
   console.log("end script");
 }
 
-async function organizeAndSortOrders() {
-  const symbolInfoByRoot = keyBy(symbols.Symbols, "Root");
-
-  const sortedAndOrganizedOrders = {};
-  const simpleSortedAndOrganizedOrders = {};
-  orders.Orders.forEach((order) => {
-    sortedAndOrganizedOrders[order.StatusDescription] =
-      sortedAndOrganizedOrders[order.StatusDescription] || [];
-    sortedAndOrganizedOrders[order.StatusDescription].push(order);
-    simpleSortedAndOrganizedOrders[order.StatusDescription] =
-      simpleSortedAndOrganizedOrders[order.StatusDescription] || [];
-    simpleSortedAndOrganizedOrders[order.StatusDescription].push(order);
-  });
-
-  for (const status in sortedAndOrganizedOrders) {
-    const sortedOrders = sortedAndOrganizedOrders[status].sort((a, b) =>
-      a.ClosedDateTime.localeCompare(b.ClosedDateTime)
-    );
-    sortedAndOrganizedOrders[status] = sortedOrders;
-  }
-
-  for (const status in simpleSortedAndOrganizedOrders) {
-    const sortedOrders = simpleSortedAndOrganizedOrders[status].sort((a, b) =>
-      a.ClosedDateTime.localeCompare(b.ClosedDateTime)
-    );
-    const simpleSortedOrders = sortedOrders.map((order) => {
-      const assetType = order.Legs[0].AssetType;
-      const rootSymbol =
-        assetType === "FUTURE"
-          ? order.Legs[0].Underlying
-          : order.Legs[0].Symbol;
-      const symbolInfo = symbolInfoByRoot[rootSymbol];
-      let symbolName =
-        assetType === "FUTURE" && symbolInfo && symbolInfo.Description;
-
-      return {
-        assetType: order.Legs[0].AssetType,
-        id: order.OrderID,
-        date: order.ClosedDateTime,
-        rootSymbol: rootSymbol,
-        name: symbolName,
-        side: order.Legs[0].BuyOrSell,
-        quantity: Number(order.Legs[0].ExecQuantity),
-        price: Number(order.FilledPrice),
-        commission: Number(order.CommissionFee),
-      };
-    });
-    simpleSortedAndOrganizedOrders[status] = simpleSortedOrders;
-  }
-
-  await fs.promises.writeFile(
-    `${path.join(__dirname, "./")}/output/sortedOrders.json`,
-    JSON.stringify(sortedAndOrganizedOrders, null, 2)
-  );
-  await fs.promises.writeFile(
-    `${path.join(__dirname, "./")}/output/simpleSortedOrders.json`,
-    JSON.stringify(simpleSortedAndOrganizedOrders, null, 2)
-  );
-}
-
-async function addUpGainsAndLosses() {
-  const filledFuturesOrders = orders.Orders.filter(
-    (order) =>
-      Number(order.FilledPrice) > 0 && order.Legs[0].AssetType === "FUTURE"
-  );
-  const ordersWithLeg = filledFuturesOrders.map((order) => {
-    const orderWithLeg = order;
-    orderWithLeg.leg = order.Legs[0];
-    if (order.FilledPrice !== order.leg.ExecutionPrice) {
-      console.log(
-        "Order has price mismatch, check which one we should be using"
-      );
-      console.log(order);
-    }
-
-    orderWithLeg.id = orderWithLeg.OrderID;
-    orderWithLeg.quantity = Number(orderWithLeg.leg.ExecQuantity);
-    orderWithLeg.price = Number(orderWithLeg.FilledPrice);
-    orderWithLeg.commission = Number(orderWithLeg.CommissionFee);
-    orderWithLeg.date = orderWithLeg.ClosedDateTime;
-    orderWithLeg.side = orderWithLeg.leg.BuyOrSell;
-    orderWithLeg.rootSymbol = orderWithLeg.leg.Underlying;
-    return orderWithLeg;
-  });
-  const filledOrders = [];
-  const filledOrdersBySymbol = {};
-  ordersWithLeg.forEach((order) => {
-    filledOrders.push(order);
-    const symbol = order.rootSymbol;
-    filledOrdersBySymbol[symbol] = filledOrdersBySymbol[symbol] || [];
-    filledOrdersBySymbol[symbol].push(order);
-  });
-
+async function addUpGainsAndLosses(simpleOrders) {
   // add up gains/losses by symbol
   const gainsBySymbol = {};
-  for (const symbol in filledOrdersBySymbol) {
-    const symbolInfo = symbols.Symbols.find((s) => s.Root === symbol);
+  const ordersByCsvFuturesCode = helpers.groupBy(
+    simpleOrders,
+    "csvFuturesCode"
+  );
+  for (const code in ordersByCsvFuturesCode) {
+    const symbolInfo = symbolMap[code];
     if (!symbolInfo) {
-      console.log(symbol + " has no symbol info");
+      console.log(code + " has no symbol info");
       continue;
     }
 
-    const orders = filledOrdersBySymbol[symbol];
+    const orders = ordersByCsvFuturesCode[code];
     if (!orders.length) {
-      console.log(symbol + " has no orders");
+      console.log(code + " has no orders");
       continue;
     }
 
-    gainsBySymbol[symbol] = addUpGainsForOrders(orders, symbolInfo);
+    gainsBySymbol[code] = addUpGainsForOrders(orders, symbolInfo);
   }
 
   // include total gains/losses/commissions
@@ -154,12 +113,13 @@ async function addUpGainsAndLosses() {
   );
 }
 
-function addUpGainsForOrders(orders, symbolInfo) {
+function addUpGainsForOrders(simpleOrders, symbolInfo) {
   let metrics = {
-    symbol: symbolInfo.Root,
-    name: symbolInfo.Description,
-    orders: orders.length,
-    dollarsPerPoint: symbolInfo.PriceFormat.PointValue,
+    symbol: symbolInfo.symbolRoot,
+    name: symbolInfo.description,
+    orders: simpleOrders.length,
+    dollarsPerPoint: symbolInfo.pointValue,
+    dollarsPerCsvPoint: symbolInfo.csvPointValue,
     commissions: 0,
     pointsGainOrLoss: 0,
     dollarsGainOrLoss: 0,
@@ -170,30 +130,16 @@ function addUpGainsForOrders(orders, symbolInfo) {
 
   let openTrades = [];
   let openTradesSide = null;
-  const sortedOrders = orders.sort((a, b) => a.date.localeCompare(b.date));
-  sortedOrders.forEach((order) => {
+  simpleOrders.forEach((order) => {
     if (
-      symbolsToLog.includes(symbolInfo.Root) ||
+      symbolsToLog.includes(symbolInfo.symbolRoot) ||
       symbolsToLog.includes("all")
     ) {
       console.log(metrics.pointsGainOrLoss);
-      console.log({
-        date: order.date,
-        orderSide: order.side,
-        commission: order.commission,
-        price: order.price,
-        quantity: order.quantity,
-      });
+      console.log(order);
     }
     if (includeHistory) {
-      metrics.history.push({
-        id: order.OrderID,
-        date: order.date,
-        orderSide: order.side,
-        commission: order.commission,
-        price: order.price,
-        quantity: order.quantity,
-      });
+      metrics.history.push(order);
     }
     metrics.commissions += order.commission;
 
@@ -202,7 +148,7 @@ function addUpGainsForOrders(orders, symbolInfo) {
       openTradesSide = order.side;
       openTrades.push(order);
       if (
-        symbolsToLog.includes(symbolInfo.Root) ||
+        symbolsToLog.includes(symbolInfo.symbolRoot) ||
         symbolsToLog.includes("all")
       ) {
         console.log("add to open trades");
@@ -214,7 +160,7 @@ function addUpGainsForOrders(orders, symbolInfo) {
     if (openTradesSide === order.side) {
       openTrades.push(order);
       if (
-        symbolsToLog.includes(symbolInfo.Root) ||
+        symbolsToLog.includes(symbolInfo.symbolRoot) ||
         symbolsToLog.includes("all")
       ) {
         console.log("add to open trades");
@@ -231,17 +177,10 @@ function addUpGainsForOrders(orders, symbolInfo) {
         openTradesSide = order.side;
         openTrades.push(order);
         if (
-          symbolsToLog.includes(symbolInfo.Root) ||
+          symbolsToLog.includes(symbolInfo.symbolRoot) ||
           symbolsToLog.includes("all")
         ) {
           console.log("add to open trades");
-          if (order.quantity !== Number(order.leg.ExecQuantity)) {
-            console.log({
-              msg: "adding partial quantity to open trades",
-              quantity: order.quantity,
-              ExecQuantity: order.leg.ExecQuantity,
-            });
-          }
         }
         return;
       }
@@ -260,7 +199,7 @@ function addUpGainsForOrders(orders, symbolInfo) {
           pointsGainOrLossPerQuantity * order.quantity;
         metrics.pointsGainOrLoss += totalPointsGainOrLoss;
         if (
-          symbolsToLog.includes(symbolInfo.Root) ||
+          symbolsToLog.includes(symbolInfo.symbolRoot) ||
           symbolsToLog.includes("all")
         ) {
           console.log("adjust total points by " + totalPointsGainOrLoss);
@@ -279,7 +218,7 @@ function addUpGainsForOrders(orders, symbolInfo) {
           pointsGainOrLossPerQuantity * order.quantity;
         metrics.pointsGainOrLoss += totalPointsGainOrLoss;
         if (
-          symbolsToLog.includes(symbolInfo.Root) ||
+          symbolsToLog.includes(symbolInfo.symbolRoot) ||
           symbolsToLog.includes("all")
         ) {
           console.log("adjust total points by " + totalPointsGainOrLoss);
@@ -295,7 +234,7 @@ function addUpGainsForOrders(orders, symbolInfo) {
         pointsGainOrLossPerQuantity * oldestOpenTrade.quantity;
       metrics.pointsGainOrLoss += totalPointsGainOrLoss;
       if (
-        symbolsToLog.includes(symbolInfo.Root) ||
+        symbolsToLog.includes(symbolInfo.symbolRoot) ||
         symbolsToLog.includes("all")
       ) {
         console.log("adjusting order quantity for partial processing");
@@ -305,70 +244,24 @@ function addUpGainsForOrders(orders, symbolInfo) {
     }
   });
 
-  if (symbolsToLog.includes(symbolInfo.Root) || symbolsToLog.includes("all")) {
+  if (
+    symbolsToLog.includes(symbolInfo.symbolRoot) ||
+    symbolsToLog.includes("all")
+  ) {
     console.log(metrics.pointsGainOrLoss);
   }
 
   metrics.dollarsGainOrLoss = formatMoney(
-    metrics.pointsGainOrLoss * metrics.dollarsPerPoint
+    metrics.pointsGainOrLoss * metrics.dollarsPerCsvPoint
   );
   metrics.commissions = formatMoney(metrics.commissions);
   metrics.totalDollarsGainOrLossIncludingCommissions = formatMoney(
-    metrics.dollarsGainOrLoss - metrics.commissions
+    metrics.dollarsGainOrLoss + metrics.commissions
   );
-  metrics.openTrades = openTrades.map((order) => ({
-    date: order.date,
-    orderSide: order.side,
-    commission: order.commission,
-    price: order.price,
-    quantity: order.quantity,
-  }));
+  metrics.openTrades = openTrades;
   return metrics;
 }
 
 function formatMoney(amt) {
   return Math.round(amt * 100) / 100;
 }
-
-function keyBy(arr, key) {
-  const keyedMap = {};
-  arr.forEach((item) => {
-    keyedMap[item[key]] = item;
-  });
-  return keyedMap;
-}
-
-function extendArrayMethods() {
-  Array.prototype.find = function (cb) {
-    for (let i = 0; i < this.length; i++) {
-      if (cb(this[i])) {
-        return this[i];
-      }
-    }
-  };
-
-  Array.prototype.forEach = function (cb) {
-    for (let i = 0; i < this.length; i++) {
-      cb(this[i], i, this);
-    }
-  };
-
-  Array.prototype.map = function (cb) {
-    let newArr = [];
-    this.forEach((item, i, arr) => newArr.push(cb(item, i, arr)));
-    return newArr;
-  };
-
-  Array.prototype.filter = function (cb) {
-    let newArr = [];
-    this.forEach((item, i, arr) => {
-      if (cb(item, i, arr)) {
-        newArr.push(item);
-      }
-    });
-    return newArr;
-  };
-}
-
-extendArrayMethods();
-run();
